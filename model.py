@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 # 设置类CNNModel，它继承了torch.nn中的Module模块
@@ -50,7 +51,7 @@ class CNNModel(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.25))
 
-        # 将输出层的神经元个数设置为class_num
+        # 将输出层的神经元个数设置为digit_num*class_num
         self.fc2 = nn.Sequential(
             nn.Linear(1024, class_num),
         )
@@ -63,18 +64,14 @@ class CNNModel(nn.Module):
     def forward(self, x): # [n, 1, 128, 128]
         # 将输入张量x按照顺序，输入至每一层中进行计算
         # 每层都会使张量x的维度发生变化
-        out = self.conv1(x) # [n, 8, 64, 64]
-        out = self.conv2(out) # [n, 16, 32, 32]
-        out = self.conv3(out) # [n, 16, 16, 16]
-        # 使用view函数，将张量的维度从n*16*16*16转为n*4096
-        out = out.view(out.size(0), -1) # [n, 4096]
-        out = self.fc1(out) # [n, 128]
-        # 经过3个卷积层与2个全连接层后，会计算得到n*40的张量
-        out = self.fc2(out) # [n, 40]
-
-        # 使用初始化时传入的digit_num
-        # 也就是将模型的最终输出，修改为n*digit_num*字符种类
-        out = out.view(out.size(0), self.digit_num, -1)
+        out = self.conv1(x) # [n, 32, 64, 64]
+        out = self.conv2(out) # [n, 64, 32, 32]
+        out = self.conv3(out) # [n, 64, 16, 16]
+        # 使用view函数，将张量的维度从n*64*16*16转为n*4096
+        out = out.view(out.size(0), -1) # [n, 64*16*16=16384]
+        out = self.fc1(out) # [n, 1024]
+        # 经过3个卷积层与2个全连接层后，会计算得到n*class_num的张量
+        out = self.fc2(out) # [n, class_num]
         return out
 
 import json
@@ -91,6 +88,7 @@ if __name__ == '__main__':
     # 定义一个CNNModelUp1实例
     model = CNNModel(height, width, digit_num, class_num)
     print(model) #将其打印，观察打印结果可以了解模型的结构
-    print("")
+    data = torch.ones(128, 1, 128, 128)
+    print(model(data).shape)
 
 

@@ -1,7 +1,8 @@
 # 直接导入dataset.py中的CaptchaDataset类
 from dataset import CaptchaDataset
 # 直接导入model.py中的CNNModel类
-from model import CNNModel
+import dataset
+from model2 import CNNModel2
 
 import torch
 import torch.nn as nn
@@ -57,12 +58,12 @@ if __name__ == '__main__':
     print("")
 
     # 定义CaptchaDataset对象train_data
-    train_data = CaptchaDataset(train_data_path, transform, characters)
+    dataset = CaptchaDataset(train_data_path, transform, characters)
     # 使用DataLoader，定义数据加载器train_load
     # 其中参数train_data是训练集
     # batch_size=64代表每个小批量数据的大小是64
     # shuffle = True表示每一轮训练，都会随机打乱数据的顺序
-    train_load = DataLoader(train_data,
+    train_load = DataLoader(dataset,
                             batch_size = batch_size,
                             shuffle = True)
     # 训练集有3000个数据，由于每个小批量大小是64，
@@ -73,13 +74,15 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
        
     # 创建一个CNNModel模型对象，并转移到GPU上
-    model = CNNModel(height, width, digit_num, class_num).to(device)
+    model = CNNModel2(height, width, digit_num, class_num).to(device)
+    # model.load_state_dict(torch.load(model_save_name, weights_only=True))
+    # model.eval()
     model.train()    
     
     # 需要指定迭代速率。默认情况下是0.001，我们将迭代速率修改0.0001
     # 因为面对更复杂的数据，较小的迭代速率可以使迭代更稳定
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    criterion = nn.CrossEntropyLoss()  # 创建一个交叉熵损失函数
+    criterion = nn.MultiLabelSoftMarginLoss()  # 创建一个多标签损失函数
 
     print("Begin training:")
     # 提升迭代轮数，从50轮训练提升至200轮训练
@@ -95,30 +98,26 @@ if __name__ == '__main__':
             output = model(data)
 
             # 修改损失值loss的计算方法
-            # 将4位验证码的每一位的损失，都累加到一起
-            loss = torch.tensor(0.0).to(device)
-            for i in range(digit_num): #使用i，循环4位验证码
-                # 每一位验证码的模型计算输出为output[:, i, :]
-                # 标记为label[:, i]
-                # 交叉熵损失函数criterion，计算一位验证码的损失
-                # 将4位验证码的损失，累加到loss
-                loss += criterion(output[:, i, :], label[:, i])
+            loss = criterion(output, label)
 
             loss.backward()  # 计算损失函数关于模型参数的梯度
             optimizer.step()  # 更新模型参数
             optimizer.zero_grad()  # 将梯度清零，以便于下一次迭代
 
-            # 计算训练时每个batch的正确率acc
-            predicted = torch.argmax(output, dim=2)
-            correct = (predicted == label).all(dim=1).sum().item()
-            acc = correct / data.size(0)
+            # 计算训练时每个batch的正确率
+            correct = 0
+            for i in range(len(data)):
+                predicted = dataset.getLabelFromOneHot(output[i])
+                correctLabel = dataset.getLabelFromOneHot(label[i])
+                if predicted == correctLabel: correct+=1
+            acc = correct / len(data)
 
             # 对于每个epoch，每训练10个batch，打印一次当前的损失
             if batch_idx % 10 == 0:
                 print(f"Epoch {epoch + 1}/{epoch_num} "
                       f"| Batch {batch_idx}/{len(train_load)} "
                       f"| Loss: {loss.item():.4f} "
-                      f"| accuracy {correct}/{data.size(0)}={acc:.3f}")
+                      f"| accuracy {correct}/{len(data)}={acc:.3f}")
 
         # 每10轮训练，就保存一次checkpoint模型，用来调试使用
         if (epoch + 1) % 10 == 0:

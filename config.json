@@ -1,10 +1,10 @@
 {
   "train_data_path": "./data/train-digit/",
   "test_data_path": "./data/test-digit/",
-  "train_num": 2000,
+  "train_num": 50000,
   "test_num": 1000,
-  "characters": "0123456789",
-  "digit_num": 1,
+  "characters": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  "digit_num": 4,
   "img_width": 200,
   "img_height": 100,
   

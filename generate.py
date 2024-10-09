@@ -10,17 +10,12 @@ import random
 # width是height是图片的宽和高
 def generate_data(num, count, chars, path, width, height):
     # 使用变量i，循环生成num个验证码图片
+    generator = ImageCaptcha(width=width, height=height)
     for i in range(num):
         # 打印当前的验证码编号
         print("generate %d"%(i))
         # 使用ImageCaptcha，创建验证码生成器generator
-        generator = ImageCaptcha(width=width, height=height)
-        random_str = "" #保存验证码图片上的字符
-        # 向random_str中，循环添加count个字符
-        for j in range(count):
-            # 每个字符，使用random.choice，随机的从chars中选择
-            choose = random.choice(chars)
-            random_str += choose
+        random_str = "".join(random.sample(chars, count)) #保存验证码图片上的字符
         # 调用generate_image，生成验证码图片img
         img = generator.generate_image(random_str)
         # 在验证码上加干扰点

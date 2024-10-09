@@ -1,4 +1,6 @@
+from numpy import dtype
 from torch.utils.data import Dataset
+from torch.nn.functional import one_hot
 from PIL import Image
 import torch
 import os
@@ -13,12 +15,12 @@ class CaptchaDataset(Dataset):
         # 使用os.listdir，获取data_dir中的全部文件
         files = os.listdir(data_dir)
         for file in files: #遍历files
-            # 将目录路径与文件名组合为文件路径
-            path = os.path.join(data_dir, file)
             # 将path添加到file_list列表
-            self.file_list.append(path)
+            self.file_list.append(file)
+        self.data_dir = data_dir
         # 将数据转换对象transform保存到类中
         self.transform = transform
+        self.characters = characters
 
         # 创建一个字符到数字的字典
         self.char2int = {}
@@ -34,30 +36,30 @@ class CaptchaDataset(Dataset):
     # 函数传入索引index，函数应当返回与该索引对应的数据和标签
     # 通过dataset[i]，就可以获取到第i个样本了
     def __getitem__(self, index):
-        file_path = self.file_list[index] #获取数据的路径
+        file = self.file_list[index] #获取数据的路径
         # 打开文件，并使用convert('L')，将图片转换为灰色
         # 不需要通过颜色来判断验证码中的字符，转为灰色后，可以提升模型的鲁棒性
-        image = Image.open(file_path).convert('L')
+        image = Image.open(os.path.join(self.data_dir, file)).convert('L')
         # 使用transform转换数据，将图片数据转为张量数据
         image = self.transform(image)
         # 获取该数据图片中的字符标签
-        label_char = os.path.basename(file_path).split('_')[0]
+        label = file.split('_')[0]
+        return image, self.getOneHotFromLabels(label) #返回image和label
 
-        # 在获取到该数据图片中的字符标签label_char后
-        label = list()
-        for char in label_char: # 遍历字符串label_char
-            # 将其中的字符转为数字，添加到列表label中
-            label.append(self.char2int[char])
-        # 将label转为张量，作为训练数据的标签
-        label = torch.tensor(label, dtype=torch.long)
-        return image, label #返回image和label
-        
+    def getOneHotFromLabels(self, label):
+        labelSensor = torch.tensor([self.char2int[ch] for ch in label], dtype=torch.long)
+        return one_hot(labelSensor, len(self.characters)).view(-1,)
+    
+    def getLabelFromOneHot(self, onehot):
+        labels = onehot.view(-1, len(self.characters)).argmax(dim=1)
+        return "".join([self.characters[charIndex] for charIndex in labels])
         
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import json
 
 if __name__ == '__main__':
+  
     with open("config.json", "r") as f:
         config = json.load(f)
 
@@ -70,7 +72,7 @@ if __name__ == '__main__':
         transforms.Resize((height, width)),  # 将图片缩放到指定的大小
         transforms.ToTensor()])  # 将图片数据转换为张量
 
-    data_path = config["train_data_path"]  # 训练数据储存路径
+    data_path = config["test_data_path"]  # 训练数据储存路径
     characters = config["characters"]  # 验证码使用的字符集
     batch_size = config["batch_size"]
     epoch_num = config["epoch_num"]
@@ -85,14 +87,8 @@ if __name__ == '__main__':
                            batch_size = batch_size,
                            shuffle = True)
 
-    # 编写一个循环，模拟小批量梯度下降迭代时的数据读取
-    # 外层循环，代表了整个训练数据集的迭代轮数，3个epoch就是3轮循环
-    # 对于每个epoch，都会遍历全部的训练数据
-    for epoch in range(epoch_num):
-        print("epoch = %d"%(epoch))
-        # 内层循环代表了，在一个迭代轮次中，以小批量的方式
-        # 使用dataloader对数据进行遍历
-        # batch_idx表示当前遍历的批次
-        # data和label表示这个批次的训练数据和标记
-        for batch_idx, (data, label) in enumerate(data_load):
-            print("batch_idx = %d label = %s"%(batch_idx, label))
+    # 使用dataloader对数据进行遍历
+    # batch_idx表示当前遍历的批次
+    # data和label表示这个批次的训练数据和标记
+    for batch_idx, (data, label) in enumerate(data_load):
+        print(f"batch_idx = {batch_idx}, data = {data.shape}, label = {label.shape}")
